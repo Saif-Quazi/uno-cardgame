@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 155" width="100" height="155">
+    <path d="M 20 0 L 80 0 Q 100 0 100 20 L 100 135 Q 100 155 80 155 L 20 155 Q 0 155 0 135 L 0 20 Q 0 0 20 0" fill="#ffffff"/>
+    <path d="M 23 8 L 77 8 Q 92 8 92 23 L 92 132 Q 92 147 77 147 L 23 147 Q 8 147 8 132 L 8 23 Q 8 8 23 8" fill="var(--card-color)"/>
+    <ellipse cx="50" cy="77.5" rx="32" ry="56" fill="none" stroke="white" stroke-width="4" transform="rotate(40 50 77.5)"/>
+    <text x="50" y="100" text-anchor="middle" fill="white" font-size="64" font-family="Arial" class="cardVal">0</text>
+    <text x="24" y="40" text-anchor="middle" fill="white" font-size="32" font-family="Arial" class="cardSuit">0</text>
+    <text x="78" y="138" text-anchor="middle" fill="white" font-size="32" font-family="Arial" class="cardSuit">0</text>
+</svg>

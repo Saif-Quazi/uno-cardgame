@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UNO! | Card Game</title>
+    <link rel="icon" href="assets/UNO-logo.png" type="image/x-icon" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link rel="stylesheet" href="styles/main.css" />
+    <link rel="stylesheet" href="styles/home.css" />
+</head>
+
+<body>
+    <div id="settingsIcon" class="settings-icon" title="Change Display Name" aria-label="Open settings">
+        <i class="fas fa-cog" aria-hidden="true"></i>
+    </div>
+
+    <main>
+        <div id="woodBG" aria-hidden="true"></div>
+        <!-- <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 100 155"
+            width="100" height="155" role="img">
+            <path d="M 20 0 L 80 0 Q 100 0 100 20 L 100 135 Q 100 155 80 155 L 20 155 Q 0 155 0 135 L 0 20 Q 0 0 20 0"
+                fill="#ffffff" />
+            <path d="M 23 8 L 77 8 Q 92 8 92 23 L 92 132 Q 92 147 77 147 L 23 147 Q 8 147 8 132 L 8 23 Q 8 8 23 8"
+                fill="#202020" />
+            <image href="assets/UNO-logo.png" xlink:href="UNO-logo.png" x="5" y="46" width="90"
+                preserveAspectRatio="xMidYMid meet" />
+            <path d="M 20 0 L 80 0 Q 100 0 100 20 L 100 135 Q 100 155 80 155 L 20 155 Q 0 155 0 135 L 0 20 Q 0 0 20 0"
+                fill="none" stroke="#ffffff" strokeWeight="10" />
+        </svg> -->
+
+        <section id="showCardFan" aria-label="Card showcase">
+            <div class="fan-container" aria-hidden="true">
+                <div class="card fan-card" data-value="5" data-color="red" data-type="number"></div>
+                <div class="card fan-card" data-value="skip" data-color="blue" data-type="skip"></div>
+                <div class="card fan-card" data-value="1" data-color="green" data-type="number"></div>
+                <div class="card fan-card" data-value="draw2" data-color="yellow" data-type="draw2"></div>
+                <div class="card fan-card" data-value="wild" data-color="wild" data-type="wild"></div>
+            </div>
+            <div class="logo-center">
+                <img id="showcaseLogo" src="assets/UNO-logo.png" alt="UNO Logo" class="showcase-logo" />
+            </div>
+        </section>
+
+        <div id="playOptions" class="play-options" role="region" aria-label="Play options">
+            <button class="playBtns" id="createGameBtn" type="button">
+                Create Game
+            </button>
+            <button class="playBtns" id="joinGameBtn" type="button">
+                Join Game
+            </button>
+        </div>
+    </main>
+
+    <template id="createRoomDialog">
+        <div class="modal-overlay" role="dialog" aria-modal="true">
+            <div class="modal-dialog">
+                <h2 class="modal-title">Create Game</h2>
+                <p class="modal-description">Choose number of players:</p>
+                <div class="player-count-buttons" role="group" aria-label="Player count">
+                    <button class="player-count-btn" data-count="2" type="button">
+                        2
+                    </button>
+                    <button class="player-count-btn" data-count="3" type="button">
+                        3
+                    </button>
+                    <button class="player-count-btn selected" data-count="4" type="button">
+                        4
+                    </button>
+                </div>
+                <div class="modal-actions">
+                    <button class="modal-btn cancel-btn" type="button">
+                        Cancel
+                    </button>
+                    <button class="modal-btn primary-btn create-btn" type="button">
+                        Create Room
+                    </button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="joinRoomDialog">
+        <div class="modal-overlay" role="dialog" aria-modal="true">
+            <div class="modal-dialog">
+                <h2 class="modal-title">Join Game</h2>
+                <p class="modal-description">
+                    Enter the 6-digit room code:
+                </p>
+                <input type="text" class="room-code-input" maxlength="7" placeholder="123-456" aria-label="Room code" />
+                <div class="modal-actions">
+                    <button class="modal-btn cancel-btn" type="button">
+                        Cancel
+                    </button>
+                    <button class="modal-btn primary-btn join-btn" type="button">
+                        Join
+                    </button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="settingsDialog">
+        <div class="modal-overlay" role="dialog" aria-modal="true">
+            <div class="modal-dialog settings-dialog">
+                <h2 class="modal-title">Settings</h2>
+                <div class="settings-section">
+                    <label class="settings-label" for="displayNameInput">Display Name</label>
+                    <input id="displayNameInput" type="text" class="name-input" maxlength="15" placeholder="Your Name"
+                        aria-label="Display name" />
+                </div>
+                <div class="settings-section">
+                    <label class="settings-label">Music Volume</label>
+                    <div class="volume-control">
+                        <button class="mute-toggle" title="Mute/Unmute" type="button" aria-pressed="false">
+                            <i class="fas fa-volume-up" aria-hidden="true"></i>
+                        </button>
+                        <input type="range" class="volume-slider" min="0" max="100" value="70"
+                            aria-label="Music volume" />
+                        <span class="volume-value" aria-live="polite">70%</span>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button class="modal-btn cancel-btn" type="button">
+                        Cancel
+                    </button>
+                    <button class="modal-btn primary-btn save-settings-btn" type="button">
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="namePromptDialog">
+        <div class="modal-overlay" role="dialog" aria-modal="true">
+            <div class="modal-dialog">
+                <h2 class="modal-title">Enter Your Name</h2>
+                <p class="modal-description">
+                    Choose a display name (alphanumeric only, 2-15
+                    characters):
+                </p>
+                <input type="text" class="name-input" maxlength="15" placeholder="Your Name"
+                    aria-label="Enter your name" />
+                <div class="modal-actions">
+                    <button class="modal-btn primary-btn confirm-name-btn" type="button">
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="client/utils.js"></script>
+    <script src="client/ui.js"></script>
+    <script src="client/socket.js"></script>
+    <script src="client/home.js"></script>
+    <script src="client/game.js"></script>
+    <script src="client/client.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>UNO! | Game Room</title>
+        <link rel="icon" href="assets/UNO-logo.png" type="image/x-icon" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap"
+            rel="stylesheet"
+        />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+        />
+        <link rel="stylesheet" href="styles/main.css" />
+        <link rel="stylesheet" href="styles/game.css" />
+    </head>
+
+    <body>
+        <div
+            id="settingsIcon"
+            class="settings-icon"
+            title="Change Display Name"
+        >
+            <i class="fas fa-cog"></i>
+        </div>
+        <main>
+            <div id="woodBG"></div>
+
+            <div id="roomOptions">
+                <h1 id="roomCode">000-000</h1>
+                <div id="playersList">
+                    <h2 class="players-title">Players</h2>
+                    <div class="player-count">0/4</div>
+                </div>
+                <button id="startGameBtn" class="start-game-btn hidden">
+                    Start Game
+                </button>
+            </div>
+
+            <div id="gameBoard" class="hidden">
+                <div id="turnIndicator" class="turn-indicator">
+                    Waiting for game...
+                </div>
+                <div id="opponentTop" class="opponent-area opponent-top"></div>
+                <div
+                    id="opponentLeft"
+                    class="opponent-area opponent-left"
+                ></div>
+                <div
+                    id="opponentRight"
+                    class="opponent-area opponent-right"
+                ></div>
+                <div
+                    id="opponentBottom"
+                    class="opponent-area opponent-bottom"
+                ></div>
+
+                <div id="centerArea">
+                    <div id="drawPile" class="card-pile clickable">
+                        <div class="card">
+                            <img
+                                src="assets/cards/back.svg"
+                                alt="Draw Pile"
+                                style="
+                                    width: 100%;
+                                    height: 100%;
+                                    border-radius: 12px;
+                                "
+                            />
+                        </div>
+                        <span class="pile-label">Draw</span>
+                    </div>
+                    <div id="discardPile" class="card-pile">
+                        <span class="pile-label">Discard</span>
+                        <div id="colorIndicator" class="color-indicator"></div>
+                    </div>
+                </div>
+                <div id="playerCards"></div>
+            </div>
+        </main>
+
+        <template id="playerItem">
+            <div class="playerTile">
+                <img class="playerAvatar" src="" alt="Player Avatar" />
+                <span class="playerName">
+                    <span class="player-display-name">Player Name</span>
+                    <i class="fas fa-crown admin-crown hidden"></i>
+                </span>
+                <button class="kick-btn hidden">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </template>
+
+        <template id="settingsDialog">
+            <div class="modal-overlay">
+                <div class="modal-dialog settings-dialog">
+                    <h2 class="modal-title">Settings</h2>
+
+                    <div class="settings-section">
+                        <label class="settings-label">Display Name</label>
+                        <input
+                            type="text"
+                            class="name-input"
+                            maxlength="15"
+                            placeholder="Your Name"
+                        />
+                    </div>
+
+                    <div class="settings-section">
+                        <label class="settings-label">Music Volume</label>
+                        <div class="volume-control">
+                            <button class="mute-toggle" title="Mute/Unmute">
+                                <i class="fas fa-volume-up"></i>
+                            </button>
+                            <input
+                                type="range"
+                                class="volume-slider"
+                                min="0"
+                                max="100"
+                                value="70"
+                            />
+                            <span class="volume-value">70%</span>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button class="modal-btn cancel-btn">Cancel</button>
+                        <button class="modal-btn primary-btn save-settings-btn">
+                            Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <template id="namePromptDialog">
+            <div class="modal-overlay">
+                <div class="modal-dialog">
+                    <h2 class="modal-title">Enter Your Name</h2>
+                    <p class="modal-description">
+                        Choose a display name (alphanumeric only, 2-15
+                        characters):
+                    </p>
+                    <input
+                        type="text"
+                        class="name-input"
+                        maxlength="15"
+                        placeholder="Your Name"
+                    />
+                    <div class="modal-actions">
+                        <button class="modal-btn primary-btn confirm-name-btn">
+                            Confirm
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <template id="kickConfirmDialog">
+            <div class="modal-overlay">
+                <div class="modal-dialog">
+                    <h2 class="modal-title">Kick Player?</h2>
+                    <p class="modal-description kick-player-name">
+                        Are you sure you want to kick <strong></strong>?
+                    </p>
+                    <div class="modal-actions">
+                        <button class="modal-btn cancel-btn kick-cancel-btn">
+                            Cancel
+                        </button>
+                        <button class="modal-btn danger-btn kick-confirm-btn">
+                            Kick
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <template id="kickedNotificationDialog">
+            <div class="modal-overlay">
+                <div class="modal-dialog">
+                    <h2 class="modal-title">You Were Kicked</h2>
+                    <p class="modal-description kicked-by-name">
+                        You have been kicked by <strong></strong>
+                    </p>
+                    <div class="modal-actions">
+                        <button class="modal-btn primary-btn kicked-ok-btn">
+                            OK
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <script src="/socket.io/socket.io.js"></script>
+        <script src="client/socket.js"></script>
+        <script src="client/utils.js"></script>
+        <script src="client/ui.js"></script>
+        <script src="client/game.js"></script>
+        <script src="client/client.js"></script>
+    </body>
+</html>
