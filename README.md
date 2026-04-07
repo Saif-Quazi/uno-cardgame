@@ -1,13 +1,18 @@
-
 # UNO Multiplayer Game
 
-A simple real-time multiplayer UNO card game built with Express, Socket.IO, and vanilla JavaScript.
+A real-time multiplayer UNO card game built with Express, Socket.IO, and vanilla JavaScript.
 
 ## Features
 - Real-time multiplayer gameplay (2-4 players)
 - Stable player connections (reconnect after refresh)
 - Easy room creation and joining
 - Simple in-memory room storage
+
+## Tech Stack
+
+- Backend: Node.js + Express
+- Real-time transport: Socket.IO (event-based, built on WebSocket with fallback transports)
+- Frontend: Vanilla JavaScript (plain browser scripts, no React/Vue/Angular)
 
 ## Project Structure
 
@@ -35,7 +40,7 @@ UnoGame/
 
 - Create or join a room from the homepage
 - Play UNO with friends in real time
-- Rooms are cleaned up after 1 hour of inactivity
+- Inactive rooms are removed after 1 hour (cleanup task runs every 10 minutes)
 
 ## License
 
@@ -43,4 +48,4 @@ MIT
 
 ---
 
-Built with Express, Socket.IO, and vanilla JavaScript
+Built with Express, Socket.IO, and vanilla JavaScript.
