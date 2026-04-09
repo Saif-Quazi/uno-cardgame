@@ -3,19 +3,18 @@ const SOCKET_EVENTS = [
   "disconnect",
   "error",
   "room:joined",
-  "room:rejoined",
   "room:left",
   "room:error",
   "player:joined",
   "player:left",
   "player:disconnected",
   "player:reconnected",
+  "player:updated",
   "game:started",
   "game:stateUpdate",
   "game:winner",
   "player:kicked",
   "admin:changed",
-  "game:action",
 ];
 
 const RECONNECTION_OPTIONS = {
@@ -83,7 +82,9 @@ const Socket = (() => {
       return;
     }
 
-    const cleanCode = String(code || "").replace(/-/g, "").trim();
+    const cleanCode = String(code || "")
+      .replace(/-/g, "")
+      .trim();
     const isValidCode = /^\d{6}$/.test(cleanCode);
     if (!isValidCode) {
       triggerEvent("room:error", {
@@ -116,11 +117,6 @@ const Socket = (() => {
   function startGame(code) {
     socket.emit("game:start", { code });
     console.log(`Starting game in room: ${code}`);
-  }
-
-  function sendAction(code, action, data) {
-    socket.emit("game:action", { code, action, data });
-    console.log(`Sending action: ${action} in room: ${code}`);
   }
 
   function on(event, handler) {
@@ -166,7 +162,6 @@ const Socket = (() => {
     joinRoom,
     leaveRoom,
     startGame,
-    sendAction,
     on,
     off,
     emit,

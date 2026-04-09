@@ -3,6 +3,7 @@
 A real-time multiplayer UNO card game built with Express, Socket.IO, and vanilla JavaScript.
 
 ## Features
+
 - Real-time multiplayer gameplay (2-4 players)
 - Stable player connections (reconnect after refresh)
 - Easy room creation and joining
@@ -18,10 +19,16 @@ A real-time multiplayer UNO card game built with Express, Socket.IO, and vanilla
 
 ```
 UnoGame/
-├── server.js         # Main server entry point
-├── server/           # Backend logic (rooms, HTTP, sockets)
-├── public/           # Static files (HTML, JS, CSS, assets)
-└── package.json      # Project manifest
+├── server.js           # Main server entry point
+├── server/             # Backend logic (rooms, HTTP, sockets)
+├── public/             # Static files (HTML, JS, CSS, assets)
+│   ├── client/         # Browser-side modules
+│   ├── styles/         # Page styles
+│   └── assets/         # Images and card art
+├── smokeTest.js        # Smoke test runner
+├── package.json        # Project manifest
+├── package-lock.json   # Locked dependency tree
+└── .gitignore          # Ignored files
 ```
 
 ## Getting Started
@@ -44,7 +51,7 @@ UnoGame/
 
 ## License
 
-MIT
+Not specified in the repository.
 
 ---
 

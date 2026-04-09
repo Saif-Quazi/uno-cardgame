@@ -6,7 +6,7 @@
   const VOLUME_KEY = "gameVolume";
   const MUTED_KEY = "gameMuted";
 
-  let notificationQueue = [];
+  const notificationQueue = [];
   let isShowingNotification = false;
 
   const Validate = {

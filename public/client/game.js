@@ -132,38 +132,7 @@ const Game = (() => {
     }
   }
 
-  function renderGameBoard(updatedGameState) {
-    document.getElementById("roomOptions")?.classList.add("hidden");
-    document.getElementById("gameBoard")?.classList.remove("hidden");
-
-    gameState = updatedGameState || gameState;
-
-    if (UI && UI.renderTopCard) {
-      UI.renderTopCard(
-        document.getElementById("discardPile"),
-        gameState.topCard,
-      );
-    }
-
-    const hand = gameState.playerHands?.[playerId] || myHand || [];
-    myHand = hand;
-    if (UI && UI.renderHand) {
-      UI.renderHand("playerCards", hand, {
-        gameState,
-        playerId,
-        onCardClick: handleCardClick,
-      });
-    }
-
-    if (UI && UI.renderOpponents) {
-      UI.renderOpponents(gameState, playerId);
-    }
-
-    updateDrawPileState();
-    updateTurnIndicator();
-  }
-
-  function handleCardClick(index, card, cardEl) {
+  function handleCardClick(index, card, _cardEl) {
     if (!gameState) return;
 
     if (V && !V.isPlayerTurn(gameState, playerId)) return;
@@ -323,46 +292,6 @@ const Game = (() => {
     }
   }
 
-  function handleRoomRejoined(data) {
-    currentRoom = data.room;
-    updateRoomCode(currentRoom.code);
-    updatePlayerList(currentRoom.players);
-
-    if (data.room.gameStarted && data.gameState) {
-      gameState = data.gameState;
-
-      document.getElementById("roomOptions")?.classList.add("hidden");
-      document.getElementById("gameBoard")?.classList.remove("hidden");
-
-      if (gameState.topCard && UI && UI.renderTopCard)
-        UI.renderTopCard(
-          document.getElementById("discardPile"),
-          gameState.topCard,
-        );
-      if (data.hand && data.hand.length > 0) {
-        myHand = data.hand;
-        if (UI && UI.renderHand)
-          UI.renderHand("playerCards", myHand, {
-            gameState,
-            playerId,
-            onCardClick: handleCardClick,
-          });
-      }
-
-      if (UI && UI.renderOpponents) UI.renderOpponents(gameState, playerId);
-      updateDrawPileState();
-      updateTurnIndicator();
-
-      Utils && Utils.showNotification
-        ? Utils.showNotification("Reconnected to game", "success")
-        : _log("Reconnected to game");
-    } else {
-      Utils && Utils.showNotification
-        ? Utils.showNotification("Reconnected to room", "success")
-        : _log("Reconnected to room");
-    }
-  }
-
   function handleRoomError(data) {
     console.error("Room error:", data);
     if (Utils && Utils.showNotification)
@@ -422,6 +351,16 @@ const Game = (() => {
           `${data.name || "A player"} reconnected`,
           "success",
         );
+    }
+  }
+
+  function handlePlayerUpdated(data) {
+    if (currentRoom && data.players) {
+      currentRoom.players = data.players;
+      updatePlayerList(data.players);
+      if (currentRoom.gameStarted && gameState && UI && UI.renderOpponents) {
+        UI.renderOpponents(gameState, playerId);
+      }
     }
   }
 
@@ -537,6 +476,124 @@ const Game = (() => {
     }
   }
 
+  function calculateGameResults(gameState, winnerId) {
+    if (!currentRoom || !gameState) return [];
+
+    // Build player rankings based on their remaining cards
+    const rankings = currentRoom.players
+      .map((player) => {
+        const pid = player.id || player.playerId;
+        const cardCount = gameState.playerHands?.[pid]?.length || 0;
+        return {
+          playerId: pid,
+          name: player.name,
+          cardCount,
+          isWinner: pid === winnerId,
+        };
+      })
+      .sort((a, b) => {
+        // Winner always first
+        if (a.isWinner) return -1;
+        if (b.isWinner) return 1;
+        // Then sort by card count (fewer = higher rank)
+        return a.cardCount - b.cardCount;
+      });
+
+    return rankings;
+  }
+
+  function returnToLobby() {
+    if (Sock && currentRoom?.code && playerId) {
+      Sock.leaveRoom(currentRoom.code);
+    }
+
+    currentRoom = null;
+    gameState = null;
+    myHand = [];
+
+    setTimeout(() => {
+      window.location.replace("/");
+    }, 100);
+  }
+
+  function showGameResults(gameState, winnerId) {
+    const rankings = calculateGameResults(gameState, winnerId);
+    if (rankings.length === 0) return;
+
+    const template = document.getElementById("gameResultsDialog");
+    if (!template) {
+      console.error("gameResultsDialog template not found");
+      return;
+    }
+
+    const clone = template.content.cloneNode(true);
+    const dialog = clone.querySelector(".modal-overlay");
+    if (!dialog) return;
+
+    const resultsList = clone.querySelector(".results-list");
+    if (resultsList) {
+      resultsList.innerHTML = "";
+
+      rankings.forEach((player, index) => {
+        const position = index + 1;
+        const positionLabel = (() => {
+          switch (position) {
+            case 1:
+              return "1st Place - Winner!";
+            case 2:
+              return "2nd Place";
+            case 3:
+              return "3rd Place";
+            default:
+              return `${position}th Place`;
+          }
+        })();
+
+        const resultItem = document.createElement("div");
+        resultItem.className = "result-item";
+
+        const rankBadge = document.createElement("div");
+        rankBadge.className = "result-rank";
+        rankBadge.textContent = position;
+
+        const info = document.createElement("div");
+        info.className = "result-info";
+
+        const playerName = document.createElement("div");
+        playerName.className = "result-player-name";
+        playerName.textContent = player.name;
+
+        const posLabel = document.createElement("div");
+        posLabel.className = "result-position-label";
+        posLabel.textContent = positionLabel;
+
+        info.appendChild(playerName);
+        info.appendChild(posLabel);
+
+        resultItem.appendChild(rankBadge);
+        resultItem.appendChild(info);
+        resultsList.appendChild(resultItem);
+      });
+    }
+
+    document.body.appendChild(clone);
+
+    const backButton = dialog.querySelector(".back-to-lobby-btn");
+    if (backButton) {
+      backButton.addEventListener("click", () => {
+        dialog.remove();
+        returnToLobby();
+      });
+    }
+
+    dialog.addEventListener("click", (e) => {
+      if (e.target === dialog) {
+        dialog.remove();
+        returnToLobby();
+      }
+    });
+  }
+
   function handleGameWinner(data) {
     const winner = currentRoom?.players.find(
       (p) => (p.id || p.playerId) === data.winnerId,
@@ -546,9 +603,8 @@ const Game = (() => {
       Utils.showNotification(`${winnerName} won the game!`, "success");
 
     setTimeout(() => {
-      document.getElementById("gameBoard")?.classList.add("hidden");
-      document.getElementById("roomOptions")?.classList.remove("hidden");
-    }, 3000);
+      showGameResults(data.gameState, data.winnerId);
+    }, 1500);
   }
 
   function handlePlayerKicked(data) {
@@ -592,12 +648,12 @@ const Game = (() => {
     }
 
     Sock.on("room:joined", (d) => handleRoomJoined(d));
-    Sock.on("room:rejoined", (d) => handleRoomRejoined(d));
     Sock.on("room:error", (d) => handleRoomError(d));
     Sock.on("player:joined", (d) => handlePlayerJoined(d));
     Sock.on("player:left", (d) => handlePlayerLeft(d));
     Sock.on("player:disconnected", (d) => handlePlayerDisconnected(d));
     Sock.on("player:reconnected", (d) => handlePlayerReconnected(d));
+    Sock.on("player:updated", (d) => handlePlayerUpdated(d));
     Sock.on("player:kicked", (d) => handlePlayerKicked(d));
     Sock.on("admin:changed", (d) => handleAdminChanged(d));
     Sock.on("game:started", (d) => handleGameStarted(d));
@@ -652,78 +708,78 @@ const Game = (() => {
         return;
       }
 
-    const roomCode =
-      Utils && Utils.getRoomCodeFromURL
-        ? Utils.getRoomCodeFromURL()
-        : (() => {
-            const params = new URLSearchParams(window.location.search);
-            const code = params.get("code");
-            return code ? code.replace(/-/g, "") : null;
-          })();
+      const roomCode =
+        Utils && Utils.getRoomCodeFromURL
+          ? Utils.getRoomCodeFromURL()
+          : (() => {
+              const params = new URLSearchParams(window.location.search);
+              const code = params.get("code");
+              return code ? code.replace(/-/g, "") : null;
+            })();
 
-    if (!roomCode) {
-      Utils && Utils.showNotification
-        ? Utils.showNotification("No room code provided", "error")
-        : alert("No room code provided");
-      setTimeout(() => (window.location.href = "/"), 1500);
-      isInitializing = false;
-      return;
-    }
-
-    const roomCodeIsValid =
-      Utils && typeof Utils.isValidRoomCode === "function"
-        ? Utils.isValidRoomCode(roomCode)
-        : /^\d{6}$/.test(String(roomCode || "").replace(/-/g, ""));
-    if (!roomCodeIsValid) {
-      Utils && Utils.showNotification
-        ? Utils.showNotification(
-            "Invalid room code format. Please join using a valid 6-digit code.",
-            "error",
-          )
-        : alert("Invalid room code format.");
-      setTimeout(() => (window.location.href = "/"), 1500);
-      isInitializing = false;
-      return;
-    }
-
-    let playerName =
-      Utils && Utils.getPlayerName
-        ? Utils.getPlayerName()
-        : localStorage.getItem("playerName");
-    if (!playerName) {
-      if (Utils && Utils.showNamePrompt) {
-        Utils.showNamePrompt((name) => {
-          initializeSocket(roomCode, name);
-        });
+      if (!roomCode) {
+        Utils && Utils.showNotification
+          ? Utils.showNotification("No room code provided", "error")
+          : alert("No room code provided");
+        setTimeout(() => (window.location.href = "/"), 1500);
+        isInitializing = false;
         return;
+      }
+
+      const roomCodeIsValid =
+        Utils && typeof Utils.isValidRoomCode === "function"
+          ? Utils.isValidRoomCode(roomCode)
+          : /^\d{6}$/.test(String(roomCode || "").replace(/-/g, ""));
+      if (!roomCodeIsValid) {
+        Utils && Utils.showNotification
+          ? Utils.showNotification(
+              "Invalid room code format. Please join using a valid 6-digit code.",
+              "error",
+            )
+          : alert("Invalid room code format.");
+        setTimeout(() => (window.location.href = "/"), 1500);
+        isInitializing = false;
+        return;
+      }
+
+      let playerName =
+        Utils && Utils.getPlayerName
+          ? Utils.getPlayerName()
+          : localStorage.getItem("playerName");
+      if (!playerName) {
+        if (Utils && Utils.showNamePrompt) {
+          Utils.showNamePrompt((name) => {
+            initializeSocket(roomCode, name);
+          });
+          return;
+        } else {
+          playerName = prompt("Enter your player name:") || "Player";
+          initializeSocket(roomCode, playerName);
+        }
       } else {
-        playerName = prompt("Enter your player name:") || "Player";
         initializeSocket(roomCode, playerName);
       }
-    } else {
-      initializeSocket(roomCode, playerName);
-    }
 
-    const settingsIcon = document.getElementById("settingsIcon");
-    settingsIcon?.addEventListener("click", () => {
-      const gameActive = currentRoom && currentRoom.gameStarted;
-      if (Utils && Utils.showSettingsDialog) {
-        Utils.showSettingsDialog((settings) => {
-          if (Utils && Utils.showNotification)
-            Utils.showNotification("Settings saved!", "success");
-          if (!gameActive && currentRoom && settings.name && Sock) {
-            Sock.emit("player:updateName", { name: settings.name });
-          }
-        }, gameActive);
-      }
-    });
+      const settingsIcon = document.getElementById("settingsIcon");
+      settingsIcon?.addEventListener("click", () => {
+        const gameActive = currentRoom && currentRoom.gameStarted;
+        if (Utils && Utils.showSettingsDialog) {
+          Utils.showSettingsDialog((settings) => {
+            if (Utils && Utils.showNotification)
+              Utils.showNotification("Settings saved!", "success");
+            if (!gameActive && currentRoom && settings.name && Sock) {
+              Sock.emit("player:updateName", { name: settings.name });
+            }
+          }, gameActive);
+        }
+      });
 
-    setTimeout(() => {
-      const drawPile = document.getElementById("drawPile");
-      if (drawPile) {
-        drawPile.addEventListener("click", () => handleDrawCard());
-      }
-    }, 100);
+      setTimeout(() => {
+        const drawPile = document.getElementById("drawPile");
+        if (drawPile) {
+          drawPile.addEventListener("click", () => handleDrawCard());
+        }
+      }, 100);
       isInitializing = false;
     })();
   }

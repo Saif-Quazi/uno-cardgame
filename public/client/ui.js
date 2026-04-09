@@ -1,14 +1,8 @@
-// UI helpers for UNO client
-// Provides DOM rendering and modal helpers.
-// Exposes global `UnoUI` with functions for rendering cards, hands, opponents and dialogs.
-//
-// This module is intentionally DOM-only: it does not emit socket events or perform validation.
-// Consumers should provide callbacks (e.g. play/draw/kick) when wiring UI to networking/logic layers.
-
 const UnoUI = (() => {
   "use strict";
 
-  // Utilities (use UnoUtils if available)
+  const CARD_BACK_SRC = "/assets/cards/back.svg";
+
   const _escapeHtml =
     (typeof UnoUtils !== "undefined" && UnoUtils.escapeHtml) ||
     function (text = "") {
@@ -24,7 +18,6 @@ const UnoUI = (() => {
     return `gradient-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   }
 
-  // Card display helpers (same logic used by the previous client implementation)
   function getCardDisplayInfo(card) {
     let display = "";
     let dataValue = "";
@@ -73,6 +66,24 @@ const UnoUI = (() => {
     return { display, dataValue, cornerSize, centerSize, centerY };
   }
 
+  function getCardVariant(card) {
+    if (!card) return "card--number";
+
+    const color = String(card.color || "").toLowerCase();
+    const type = String(card.type || "").toLowerCase();
+    const value = String(card.value || "").toLowerCase();
+
+    if (color === "wild" || value.includes("wild")) {
+      return "card--wild";
+    }
+
+    if (type === "skip" || type === "reverse" || type === "draw2") {
+      return "card--action";
+    }
+
+    return "card--number";
+  }
+
   function getCardDataValue(card) {
     if (!card) return "";
     if (card.color === "wild") {
@@ -92,10 +103,10 @@ const UnoUI = (() => {
     return `${card.color}${card.value}`;
   }
 
-  // Create a card DOM element (DIV with SVG inside). Returns DOM Node.
   function createCardElement(card) {
     const cardEl = document.createElement("div");
     cardEl.className = "card";
+    cardEl.classList.add(getCardVariant(card));
 
     const cardInfo = getCardDisplayInfo(card);
 
@@ -103,7 +114,6 @@ const UnoUI = (() => {
     cardEl.dataset.color = card?.color || "";
     cardEl.dataset.type = card?.type || "";
 
-    // Build an SVG markup string for simpler, consistent visuals
     const gradientId = _createGradientId();
 
     const color = (card?.color || "").toLowerCase();
@@ -113,7 +123,6 @@ const UnoUI = (() => {
     const centerY = cardInfo.centerY;
     const textColor = color === "yellow" ? "#000" : "#fff";
 
-    // Basic gradient stops per color
     const gradients = {
       red: `<stop offset="0%" style="stop-color:#ff3030"/><stop offset="100%" style="stop-color:#d72600"/>`,
       blue: `<stop offset="0%" style="stop-color:#3d8cff"/><stop offset="100%" style="stop-color:#0956bf"/>`,
@@ -125,28 +134,22 @@ const UnoUI = (() => {
 
     const gradStops = gradients[color] || gradients.default;
 
-    // SVG markup
     let svgMarkup = `<svg viewBox="0 0 100 155" class="card-svg" xmlns="http://www.w3.org/2000/svg">`;
     svgMarkup += `<defs><linearGradient id="${gradientId}" x1="0%" y1="0%" x2="100%" y2="100%">${gradStops}</linearGradient></defs>`;
 
-    // background rectangle using gradient
     const bgFill = color === "wild" ? "#222" : `url(#${gradientId})`;
     const border = color === "wild" ? "#fff" : "#ffffff";
     svgMarkup += `<rect x="2" y="2" width="96" height="151" rx="12" ry="12" fill="${bgFill}" stroke="${border}" stroke-width="2"/>`;
 
-    // Helper functions for corner text
     function cornerText(text) {
-      return `<text x="18" y="28" font-family="Poppins, Arial, sans-serif" font-size="${cornerSize}" font-weight="700" fill="${textColor}">${_escapeHtml(String(text))}</text>`;
+      return `<text class="corner-text" x="18" y="28" font-family="Poppins, Arial, sans-serif" font-size="${cornerSize}" font-weight="700" fill="${textColor}">${_escapeHtml(String(text))}</text>`;
     }
     function bottomCornerText(text) {
-      // rotate 180 around bottom-right corner area
       return `<g transform="translate(100,155) rotate(180)">${cornerText(text)}</g>`;
     }
 
-    // center oval (outline) - main visual element
     svgMarkup += `<ellipse cx="50" cy="77.5" rx="34" ry="52" fill="none" stroke="rgba(255,255,255,0.9)" stroke-width="3" transform="rotate(35 50 77.5)"/>`;
 
-    // Render center and corners based on type
     const type = (card?.type || "").toLowerCase();
 
     if (type === "number") {
@@ -158,7 +161,6 @@ const UnoUI = (() => {
       svgMarkup += `<g class="center-text"><text x="50" y="${centerY}" font-family="Poppins, Arial, sans-serif" font-size="${centerSize}" font-weight="800" text-anchor="middle" fill="${textColor}">+2</text></g>`;
       svgMarkup += `<g class="corner-bottom">${bottomCornerText("+2")}</g>`;
     } else if (type === "skip") {
-      // Use Font Awesome icon inside foreignObject if available; fallback to simple X
       svgMarkup += `<g class="corner-top">${cornerText("✕")}</g>`;
       svgMarkup += `<foreignObject x="30" y="50" width="40" height="40"><body xmlns="http://www.w3.org/1999/xhtml" style="margin:0;padding:0;background:transparent;"><div style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:${textColor};"><i class="fa-solid fa-ban" style="font-size:28px;line-height:1"></i></div></body></foreignObject>`;
       svgMarkup += `<g class="corner-bottom">${bottomCornerText("✕")}</g>`;
@@ -172,30 +174,24 @@ const UnoUI = (() => {
         .toLowerCase()
         .includes("wild")
     ) {
-      // Wild card: center oval contains four color marks (red/blue/green/yellow)
-      // interior colored circles placed within the oval
       const quarter = [
-        { cx: 36, cy: 65, fill: "#e53935" }, // red (top-left)
-        { cx: 64, cy: 65, fill: "#1e88e5" }, // blue (top-right)
-        { cx: 36, cy: 90, fill: "#43a047" }, // green (bottom-left)
-        { cx: 64, cy: 90, fill: "#fdd835" }, // yellow (bottom-right)
+        { cx: 36, cy: 65, fill: "#e53935" },
+        { cx: 64, cy: 65, fill: "#1e88e5" },
+        { cx: 36, cy: 90, fill: "#43a047" },
+        { cx: 64, cy: 90, fill: "#fdd835" },
       ];
-      // Slightly darker center oval outline
       svgMarkup += `<ellipse cx="50" cy="77.5" rx="28" ry="40" fill="none" stroke="rgba(0,0,0,0.12)" stroke-width="2" transform="rotate(35 50 77.5)"/>`;
       quarter.forEach((q) => {
         svgMarkup += `<circle cx="${q.cx}" cy="${q.cy}" r="9" fill="${q.fill}" stroke="#222" stroke-width="0.5" />`;
       });
-      // small corner ovals where the value normally is
       svgMarkup += `<ellipse cx="18" cy="28" rx="7" ry="9" fill="#e53935" stroke="#222" stroke-width="0.6" />`;
       svgMarkup += `<g transform="translate(100,155) rotate(180)"><ellipse cx="18" cy="28" rx="7" ry="9" fill="#e53935" stroke="#222" stroke-width="0.6" /></g>`;
-      // center label
       if (String(card?.value).toLowerCase() === "wild4" || display === "+4") {
         svgMarkup += `<g class="center-text"><text x="50" y="${centerY}" font-family="Poppins, Arial, sans-serif" font-size="${centerSize}" font-weight="800" text-anchor="middle" fill="#fff">+4</text></g>`;
       } else {
         svgMarkup += `<g class="center-text"><text x="50" y="${centerY}" font-family="Poppins, Arial, sans-serif" font-size="${centerSize}" font-weight="800" text-anchor="middle" fill="#fff">W</text></g>`;
       }
     } else {
-      // fallback
       svgMarkup += `<g class="corner-top">${cornerText(display)}</g>`;
       svgMarkup += `<g class="center-text"><text x="50" y="${centerY}" font-family="Poppins, Arial, sans-serif" font-size="${centerSize}" font-weight="700" text-anchor="middle" fill="${textColor}">${_escapeHtml(String(display))}</text></g>`;
       svgMarkup += `<g class="corner-bottom">${bottomCornerText(display)}</g>`;
@@ -203,17 +199,11 @@ const UnoUI = (() => {
 
     svgMarkup += `</svg>`;
 
-    // set the svg markup
     cardEl.innerHTML = svgMarkup;
 
     return cardEl;
   }
 
-  // Render player's hand into a container element (id or element)
-  // options:
-  //  - playerId (string)
-  //  - gameState (object) optional - used to determine playability styling
-  //  - onCardClick(cardIndex, card, cardEl) callback for clicks
   function renderHand(containerOrId, hand = [], options = {}) {
     const container =
       typeof containerOrId === "string"
@@ -257,7 +247,6 @@ const UnoUI = (() => {
     });
   }
 
-  // Render the top/discard pile card
   function renderTopCard(containerOrId, card) {
     const container =
       typeof containerOrId === "string"
@@ -274,7 +263,6 @@ const UnoUI = (() => {
     container.appendChild(el);
   }
 
-  // Update a color indicator element (adds class color-<color>)
   function updateColorIndicator(indicatorOrId, color) {
     const indicator =
       typeof indicatorOrId === "string"
@@ -293,10 +281,25 @@ const UnoUI = (() => {
     }
   }
 
-  // Render opponents into positions: top/right/bottom/left by default.
-  // gameState expected to have `players` (array) with playerId/playerId|id, cardCount, name
   function renderOpponents(gameState, myPlayerId, containerIds = null) {
     if (!gameState || !Array.isArray(gameState.players)) return;
+
+    function getOpponentCardCount(opponent) {
+      if (!opponent) return 0;
+
+      if (Number.isFinite(opponent.cardCount)) return opponent.cardCount;
+      if (Number.isFinite(opponent.handCount)) return opponent.handCount;
+      if (Array.isArray(opponent.hand)) return opponent.hand.length;
+      if (Array.isArray(opponent.cards)) return opponent.cards.length;
+
+      const parsedCardCount = Number(opponent.cardCount);
+      if (Number.isFinite(parsedCardCount)) return parsedCardCount;
+
+      const parsedHandCount = Number(opponent.handCount);
+      if (Number.isFinite(parsedHandCount)) return parsedHandCount;
+
+      return 0;
+    }
 
     const opponents = gameState.players.filter((p) => {
       const id = p.playerId || p.id;
@@ -314,7 +317,6 @@ const UnoUI = (() => {
         ? containerIds
         : defaultPositions;
 
-    // clear areas
     positions.forEach((id) => {
       const area = document.getElementById(id);
       if (area) area.innerHTML = "";
@@ -333,7 +335,6 @@ const UnoUI = (() => {
       nameSpan.className = "profile-name";
       nameSpan.textContent = opponent.name || "Player";
 
-      // admin indicator: first player in players array is admin
       const adminIndex = 0;
       const isAdmin =
         gameState.players[adminIndex] &&
@@ -353,7 +354,7 @@ const UnoUI = (() => {
       const cardFan = document.createElement("div");
       cardFan.className = "opponent-card-fan";
 
-      const cardCount = opponent.cardCount || 0;
+      const cardCount = getOpponentCardCount(opponent);
       const displayCount = Math.min(cardCount, 7);
       const isVertical =
         areaId === "opponentLeft" || areaId === "opponentRight";
@@ -361,8 +362,8 @@ const UnoUI = (() => {
       for (let i = 0; i < displayCount; i++) {
         const cardImg = document.createElement("img");
         cardImg.className = "opponent-card-back";
-        cardImg.src = "assets/cards/back.svg";
-        cardImg.alt = "Card";
+        cardImg.src = CARD_BACK_SRC;
+        cardImg.alt = "Card back";
 
         const rotation = (i / (displayCount - 1 || 1) - 0.5) * 30;
         cardImg.style.setProperty("--card-rotation", `${rotation}deg`);
@@ -382,7 +383,6 @@ const UnoUI = (() => {
     });
   }
 
-  // Show a simple color-picker modal and call callback(color)
   function showColorPicker(callback) {
     const colors = ["red", "blue", "green", "yellow"];
     const overlay = document.createElement("div");
@@ -411,7 +411,6 @@ const UnoUI = (() => {
       pickerContainer.appendChild(btn);
     });
 
-    // clicking overlay dismisses
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) overlay.remove();
     });
@@ -419,9 +418,6 @@ const UnoUI = (() => {
     document.body.appendChild(overlay);
   }
 
-  // Show kick confirmation dialog. Use template with id 'kickConfirmDialog' if present.
-  // `player` object: { id | playerId, name }
-  // callbacks: onConfirm(playerId), onCancel()
   function showKickConfirmation(player, onConfirm, onCancel) {
     const template = document.getElementById("kickConfirmDialog");
     let overlayEl;
@@ -469,7 +465,6 @@ const UnoUI = (() => {
     });
   }
 
-  // Show notification that the user was kicked. Optionally call okCallback on acknowledgement.
   function showKickedNotification(kickedBy, okCallback) {
     const template = document.getElementById("kickedNotificationDialog");
     let overlayEl;
@@ -505,8 +500,6 @@ const UnoUI = (() => {
     });
   }
 
-  // Render player list into container (id or element).
-  // options: { currentPlayerId, isAdmin, onKick(playerId), showKickCondition(room, player, index) }
   function renderPlayerList(containerOrId, players = [], options = {}) {
     const container =
       typeof containerOrId === "string"
@@ -524,13 +517,11 @@ const UnoUI = (() => {
       if (template && template.content) {
         const clone = template.content.cloneNode(true);
         tile = clone.querySelector(".playerTile") || clone;
-        // If clone doesn't have top-level .playerTile, append clone whole
         if (!tile) {
           container.appendChild(clone);
           return;
         }
       } else {
-        // create minimal tile
         const wrap = document.createElement("div");
         wrap.className = "playerTile";
         wrap.innerHTML = `
@@ -561,8 +552,6 @@ const UnoUI = (() => {
         else crown.classList.add("hidden");
       }
 
-      // Decide whether to show kick button:
-      // If caller provided custom predicate, use it. Otherwise basic logic: if isAdmin && index !== 0
       const shouldShowKick =
         typeof options.showKickCondition === "function"
           ? options.showKickCondition({ room: options.room, player, index })
@@ -590,14 +579,12 @@ const UnoUI = (() => {
     });
   }
 
-  // Small helper to show a notification — prefer UnoUtils.showNotification if present
   function showNotification(message, type = "info") {
     if (typeof UnoUtils !== "undefined" && UnoUtils.showNotification) {
       UnoUtils.showNotification(message, type);
       return;
     }
 
-    // fallback simple notification
     const el = document.createElement("div");
     el.className = `notification ${type}`;
     el.textContent = message;
@@ -608,11 +595,11 @@ const UnoUI = (() => {
     }, 2000);
   }
 
-  // Public API
   return {
     createCardElement,
     getCardDisplayInfo,
     getCardDataValue,
+    getCardVariant,
     renderHand,
     renderTopCard,
     renderOpponents,
@@ -624,3 +611,5 @@ const UnoUI = (() => {
     showNotification,
   };
 })();
+
+if (typeof window !== "undefined") window.UnoUI = UnoUI;

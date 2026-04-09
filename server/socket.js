@@ -1,322 +1,423 @@
 function setupSocketHandlers(io, roomManager) {
-	io.on("connection", (socket) => {
-		socket.on("player:join", ({ playerId, name }) => {
-			if (!playerId) {
-				socket.emit("room:error", { message: "playerId is required" });
-				return;
-			}
+  function sanitizeName(name) {
+    const sanitized = String(name || "")
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .trim();
 
-			socket.playerId = playerId;
-			socket.playerName = name || "Player";
+    if (sanitized.length < 2 || sanitized.length > 15) {
+      return null;
+    }
 
-			socket.emit("player:joined", { playerId });
-		});
+    return sanitized;
+  }
 
-		socket.on("room:join", ({ code, playerId, name }) => {
-			const normalizedCode = String(code || "").replace(/-/g, "").trim();
+  function getPublicRoom(room) {
+    return roomManager.getPublicRoom(room);
+  }
 
-			if (!normalizedCode || !playerId) {
-				socket.emit("room:error", {
-					message: "code and playerId are required",
-				});
-				return;
-			}
+  io.on("connection", (socket) => {
+    socket.on("player:join", ({ playerId, name }) => {
+      if (!playerId) {
+        socket.emit("room:error", { message: "playerId is required" });
+        return;
+      }
 
-			if (!/^\d{6}$/.test(normalizedCode)) {
-				socket.emit("room:error", {
-					message: "Invalid room code format. Use a 6-digit code.",
-				});
-				return;
-			}
+      socket.playerId = playerId;
+      socket.playerName = name || "Player";
 
-			const room = roomManager.getRoom(normalizedCode);
-			if (!room) {
-				socket.emit("room:error", {
-					message: "Room not found. Please check the room code.",
-				});
-				return;
-			}
+      socket.emit("player:joined", { playerId });
+    });
 
-			const existingRoom = roomManager.findPlayerRoom(playerId);
-			if (existingRoom && existingRoom.code !== normalizedCode) {
-				const switchResult = roomManager.removePlayer(existingRoom.code, playerId, false);
-				if (switchResult.success) {
-					socket.leave(existingRoom.code);
+    socket.on("room:join", ({ code, playerId, name }) => {
+      const normalizedCode = String(code || "")
+        .replace(/-/g, "")
+        .trim();
 
-					socket.to(existingRoom.code).emit("player:left", {
-						playerId,
-						players: switchResult.room.players,
-					});
+      if (!normalizedCode || !playerId) {
+        socket.emit("room:error", {
+          message: "code and playerId are required",
+        });
+        return;
+      }
 
-					if (switchResult.wasAdmin && switchResult.newAdmin) {
-						io.to(existingRoom.code).emit("admin:changed", {
-							newAdminId: switchResult.newAdmin.id,
-							newAdminName: switchResult.newAdmin.name,
-						});
-					}
-				}
-			}
+      if (!/^\d{6}$/.test(normalizedCode)) {
+        socket.emit("room:error", {
+          message: "Invalid room code format. Use a 6-digit code.",
+        });
+        return;
+      }
 
-			const result = roomManager.addPlayer(normalizedCode, playerId, name || "Player");
+      const room = roomManager.getRoom(normalizedCode);
+      if (!room) {
+        socket.emit("room:error", {
+          message: "Room not found. Please check the room code.",
+        });
+        return;
+      }
 
-			if (!result.success) {
-				socket.emit("room:error", { message: result.error });
-				return;
-			}
+      const existingRoom = roomManager.findPlayerRoom(playerId);
+      if (existingRoom && existingRoom.code !== normalizedCode) {
+        const switchResult = roomManager.removePlayer(
+          existingRoom.code,
+          playerId,
+          false,
+        );
+        if (switchResult.success) {
+          socket.leave(existingRoom.code);
 
-			if (socket.currentRoom && socket.currentRoom !== normalizedCode) {
-				socket.leave(socket.currentRoom);
-			}
+          socket.to(existingRoom.code).emit("player:left", {
+            playerId,
+            players: switchResult.room.players,
+          });
 
-			socket.join(normalizedCode);
-			socket.currentRoom = normalizedCode;
-			socket.playerId = playerId;
-			socket.playerName = name || "Player";
+          if (switchResult.wasAdmin && switchResult.newAdmin) {
+            io.to(existingRoom.code).emit("admin:changed", {
+              newAdminId: switchResult.newAdmin.id,
+              newAdminName: switchResult.newAdmin.name,
+            });
+          }
+        }
+      }
 
-			if (result.reconnected && result.room.gameStarted) {
-				const gameState = roomManager.getPublicGameState(result.room);
-				const playerHand = result.room.gameState?.playerHands?.[playerId] || [];
+      const result = roomManager.addPlayer(
+        normalizedCode,
+        playerId,
+        name || "Player",
+      );
 
-				socket.emit("room:joined", {
-					code: result.room.code,
-					room: result.room,
-					gameState,
-					hand: playerHand,
-					reconnected: true,
-				});
+      if (!result.success) {
+        socket.emit("room:error", { message: result.error });
+        return;
+      }
 
-				// Notify others of reconnection
-				socket.to(normalizedCode).emit("player:reconnected", {
-					playerId,
-					name: name || "Player",
-					players: result.room.players,
-				});
-			} else {
-				socket.emit("room:joined", {
-					code: result.room.code,
-					room: result.room,
-					reconnected: result.reconnected || false,
-				});
+      if (socket.currentRoom && socket.currentRoom !== normalizedCode) {
+        socket.leave(socket.currentRoom);
+      }
 
-				if (!result.reconnected) {
-					socket.to(normalizedCode).emit("player:joined", {
-						playerId,
-						name: name || "Player",
-						players: result.room.players,
-					});
-				}
-			}
+      socket.join(normalizedCode);
+      socket.currentRoom = normalizedCode;
+      socket.playerId = playerId;
+      socket.playerName = name || "Player";
 
-		});
+      if (result.reconnected && result.room.gameStarted) {
+        const gameState = roomManager.getPublicGameState(result.room);
+        const playerHand = result.room.gameState?.playerHands?.[playerId] || [];
 
-		socket.on("room:leave", ({ code, playerId }) => {
-			const normalizedCode = String(code || "").replace(/-/g, "").trim();
-			if (!normalizedCode || !playerId) return;
+        socket.emit("room:joined", {
+          code: result.room.code,
+          room: getPublicRoom(result.room),
+          gameState,
+          hand: playerHand,
+          reconnected: true,
+        });
 
-			const result = roomManager.removePlayer(normalizedCode, playerId, false);
+        socket.to(normalizedCode).emit("player:reconnected", {
+          playerId,
+          name: name || "Player",
+          players: result.room.players,
+        });
+      } else {
+        socket.emit("room:joined", {
+          code: result.room.code,
+          room: getPublicRoom(result.room),
+          reconnected: result.reconnected || false,
+        });
 
-			if (result.success) {
-				socket.leave(normalizedCode);
-				socket.currentRoom = null;
+        if (!result.reconnected) {
+          socket.to(normalizedCode).emit("player:joined", {
+            playerId,
+            name: name || "Player",
+            players: result.room.players,
+          });
+        }
+      }
+    });
 
-				socket.emit("room:left", { code: normalizedCode });
+    socket.on("player:updateName", ({ name }) => {
+      if (!socket.playerId || !socket.currentRoom) {
+        socket.emit("room:error", {
+          message: "You must be in a room to update your name",
+        });
+        return;
+      }
 
-				// Notify room about player leaving
-				socket.to(normalizedCode).emit("player:left", {
-					playerId,
-					players: result.room.players,
-				});
+      const sanitizedName = sanitizeName(name);
+      if (!sanitizedName) {
+        socket.emit("room:error", {
+          message: "Name must be 2-15 alphanumeric characters",
+        });
+        return;
+      }
 
-				// If admin left and there's a new admin, notify the room
-				if (result.wasAdmin && result.newAdmin) {
-					io.to(normalizedCode).emit("admin:changed", {
-						newAdminId: result.newAdmin.id,
-						newAdminName: result.newAdmin.name,
-					});
-				}
+      const room = roomManager.getRoom(socket.currentRoom);
+      if (!room) {
+        socket.emit("room:error", { message: "Room not found" });
+        return;
+      }
 
-			}
-		});
+      const player = room.players.find(
+        (p) => p.id === socket.playerId || p.playerId === socket.playerId,
+      );
 
-		socket.on("game:start", () => {
-			if (!socket.currentRoom || !socket.playerId) return;
+      if (!player) {
+        socket.emit("room:error", { message: "Player not found in room" });
+        return;
+      }
 
-			const result = roomManager.startGame(socket.currentRoom, socket.playerId);
+      player.name = sanitizedName;
+      socket.playerName = sanitizedName;
+      room.lastActivity = Date.now();
 
-			if (!result.success) {
-				socket.emit("room:error", { message: result.error });
-				return;
-			}
+      io.to(socket.currentRoom).emit("player:updated", {
+        playerId: socket.playerId,
+        name: sanitizedName,
+        players: room.players,
+      });
+    });
 
-			// Send game state to all players
-			const room = roomManager.getRoom(socket.currentRoom);
-			room.players.forEach((player) => {
-				const playerId = player.id || player.playerId;
-				const playerSocket = Array.from(io.sockets.sockets.values()).find(
-					(s) => s.playerId === playerId
-				);
+    socket.on("room:leave", ({ code, playerId }) => {
+      const normalizedCode = String(code || "")
+        .replace(/-/g, "")
+        .trim();
+      if (!normalizedCode || !playerId) return;
 
-				if (playerSocket) {
-					playerSocket.emit("game:started", {
-						gameState: result.gameState,
-						hand: room.gameState.playerHands[playerId],
-					});
-				}
-			});
-		});
+      const result = roomManager.removePlayer(normalizedCode, playerId, false);
 
-		socket.on("game:playCard", ({ cardIndex, chosenColor }) => {
-			if (!socket.currentRoom || !socket.playerId || typeof cardIndex !== "number") return;
+      if (result.success) {
+        socket.leave(normalizedCode);
+        socket.currentRoom = null;
 
-			const result = roomManager.playCard(
-				socket.currentRoom,
-				socket.playerId,
-				cardIndex,
-				chosenColor
-			);
+        socket.emit("room:left", { code: normalizedCode });
 
-			if (!result.success) {
-				socket.emit("room:error", { message: result.error });
-				return;
-			}
+        socket.to(normalizedCode).emit("player:left", {
+          playerId,
+          players: result.room.players,
+        });
 
-			if (result.winner) {
-				io.to(socket.currentRoom).emit("game:winner", {
-					winnerId: result.winner,
-					gameState: result.gameState,
-				});
-				return;
-			}
+        if (result.wasAdmin && result.newAdmin) {
+          io.to(normalizedCode).emit("admin:changed", {
+            newAdminId: result.newAdmin.id,
+            newAdminName: result.newAdmin.name,
+          });
+        }
+      }
+    });
 
-			// Send updated game state to all players
-			const room = roomManager.getRoom(socket.currentRoom);
-			room.players.forEach((player) => {
-				const playerId = player.id || player.playerId;
-				const playerSocket = Array.from(io.sockets.sockets.values()).find(
-					(s) => s.playerId === playerId
-				);
+    socket.on("game:start", () => {
+      if (!socket.currentRoom || !socket.playerId) return;
 
-				if (playerSocket) {
-					playerSocket.emit("game:stateUpdate", {
-						gameState: result.gameState,
-						hand: room.gameState.playerHands[playerId],
-					});
-				}
-			});
-		});
+      const result = roomManager.startGame(socket.currentRoom, socket.playerId);
 
-		socket.on("game:drawCard", () => {
-			if (!socket.currentRoom || !socket.playerId) return;
+      if (!result.success) {
+        socket.emit("room:error", { message: result.error });
+        return;
+      }
 
-			const result = roomManager.drawCard(socket.currentRoom, socket.playerId);
+      const room = roomManager.getRoom(socket.currentRoom);
+      room.players.forEach((player) => {
+        const playerId = player.id || player.playerId;
+        const playerSocket = Array.from(io.sockets.sockets.values()).find(
+          (s) => s.playerId === playerId,
+        );
 
-			if (!result.success) {
-				socket.emit("room:error", { message: result.error });
-				return;
-			}
+        if (playerSocket) {
+          playerSocket.emit("game:started", {
+            gameState: result.gameState,
+            hand: room.gameState.playerHands[playerId],
+          });
+        }
+      });
+    });
 
-			// Send updated game state to all players
-			const room = roomManager.getRoom(socket.currentRoom);
-			room.players.forEach((player) => {
-				const playerId = player.id || player.playerId;
-				const playerSocket = Array.from(io.sockets.sockets.values()).find(
-					(s) => s.playerId === playerId
-				);
+    socket.on("game:playCard", ({ cardIndex, chosenColor }) => {
+      if (
+        !socket.currentRoom ||
+        !socket.playerId ||
+        typeof cardIndex !== "number"
+      )
+        return;
 
-				if (playerSocket) {
-					playerSocket.emit("game:stateUpdate", {
-						gameState: result.gameState,
-						hand: room.gameState.playerHands[playerId],
-					});
-				}
-			});
-		});
+      const result = roomManager.playCard(
+        socket.currentRoom,
+        socket.playerId,
+        cardIndex,
+        chosenColor,
+      );
 
-		socket.on("player:kick", ({ playerId: kickPlayerId }) => {
-			if (!socket.currentRoom || !socket.playerId) return;
+      if (!result.success) {
+        socket.emit("room:error", { message: result.error });
+        return;
+      }
 
-			const room = roomManager.getRoom(socket.currentRoom);
-			if (!room) return;
+      if (result.winner) {
+        const room = roomManager.getRoom(socket.currentRoom);
+        if (room) {
+          room.players.forEach((player) => {
+            const playerId = player.id || player.playerId;
+            const playerSocket = Array.from(io.sockets.sockets.values()).find(
+              (s) => s.playerId === playerId,
+            );
 
-			const adminId = room.players[0]?.id || room.players[0]?.playerId;
-			if (adminId !== socket.playerId) {
-				socket.emit("room:error", { message: "Only admin can kick players" });
-				return;
-			}
+            if (playerSocket) {
+              playerSocket.emit("game:stateUpdate", {
+                gameState: result.gameState,
+                hand: room.gameState.playerHands[playerId],
+              });
+            }
+          });
+        }
 
-			if (kickPlayerId === socket.playerId) {
-				socket.emit("room:error", { message: "Cannot kick yourself" });
-				return;
-			}
+        io.to(socket.currentRoom).emit("game:winner", {
+          winnerId: result.winner,
+          gameState: result.gameState,
+        });
+        return;
+      }
 
-			if (room.gameStarted) {
-				socket.emit("room:error", { message: "Cannot kick during game" });
-				return;
-			}
+      const room = roomManager.getRoom(socket.currentRoom);
+      room.players.forEach((player) => {
+        const playerId = player.id || player.playerId;
+        const playerSocket = Array.from(io.sockets.sockets.values()).find(
+          (s) => s.playerId === playerId,
+        );
 
-			const playerToKick = room.players.find(p => (p.id === kickPlayerId || p.playerId === kickPlayerId));
-			if (!playerToKick) {
-				socket.emit("room:error", { message: "Player not found in room" });
-				return;
-			}
+        if (playerSocket) {
+          playerSocket.emit("game:stateUpdate", {
+            gameState: result.gameState,
+            hand: room.gameState.playerHands[playerId],
+          });
+        }
+      });
+    });
 
-			const adminName = socket.playerName || "Admin";
-			const result = roomManager.removePlayer(socket.currentRoom, kickPlayerId, true);
+    socket.on("game:drawCard", () => {
+      if (!socket.currentRoom || !socket.playerId) return;
 
-			if (result.success) {
+      const result = roomManager.drawCard(socket.currentRoom, socket.playerId);
 
-				const kickedSocket = Array.from(io.sockets.sockets.values()).find(
-					(s) => s.playerId === kickPlayerId
-				);
+      if (!result.success) {
+        socket.emit("room:error", { message: result.error });
+        return;
+      }
 
-				if (kickedSocket) {
-					kickedSocket.emit("player:kicked", {
-						kickedBy: adminName,
-						message: `You have been kicked by ${adminName}`
-					});
-					kickedSocket.leave(socket.currentRoom);
-					kickedSocket.currentRoom = null;
-				}
+      const room = roomManager.getRoom(socket.currentRoom);
+      room.players.forEach((player) => {
+        const playerId = player.id || player.playerId;
+        const playerSocket = Array.from(io.sockets.sockets.values()).find(
+          (s) => s.playerId === playerId,
+        );
 
-				io.to(socket.currentRoom).emit("player:left", {
-					playerId: kickPlayerId,
-					players: result.room.players,
-				});
-			} else {
-				socket.emit("room:error", { message: result.error });
-			}
-		});
+        if (playerSocket) {
+          playerSocket.emit("game:stateUpdate", {
+            gameState: result.gameState,
+            hand: room.gameState.playerHands[playerId],
+          });
+        }
+      });
+    });
 
-		socket.on("disconnect", () => {
+    socket.on("player:kick", ({ playerId: kickPlayerId }) => {
+      if (!socket.currentRoom || !socket.playerId) return;
 
-			if (socket.playerId && socket.currentRoom) {
-				const room = roomManager.getRoom(socket.currentRoom);
+      const room = roomManager.getRoom(socket.currentRoom);
+      if (!room) return;
 
-				const wasAdmin = room && room.players[0] &&
-					(room.players[0].id === socket.playerId || room.players[0].playerId === socket.playerId);
+      const adminId = room.players[0]?.id || room.players[0]?.playerId;
+      if (adminId !== socket.playerId) {
+        socket.emit("room:error", { message: "Only admin can kick players" });
+        return;
+      }
 
-				roomManager.disconnectPlayer(socket.playerId);
+      if (kickPlayerId === socket.playerId) {
+        socket.emit("room:error", { message: "Cannot kick yourself" });
+        return;
+      }
 
-				if (room) {
-					socket.to(socket.currentRoom).emit("player:disconnected", {
-						playerId: socket.playerId,
-						players: room.players,
-					});
+      if (room.gameStarted) {
+        socket.emit("room:error", { message: "Cannot kick during game" });
+        return;
+      }
 
-					if (wasAdmin) {
-						const connectedPlayers = room.players.filter(p => p.connected);
-						if (connectedPlayers.length > 0) {
-							const newAdmin = connectedPlayers[0];
-							socket.to(socket.currentRoom).emit("admin:changed", {
-								newAdminId: newAdmin.id,
-								newAdminName: newAdmin.name,
-							});
-						}
-					}
-				}
-			}
-		});
-	});
+      const playerToKick = room.players.find(
+        (p) => p.id === kickPlayerId || p.playerId === kickPlayerId,
+      );
+      if (!playerToKick) {
+        socket.emit("room:error", { message: "Player not found in room" });
+        return;
+      }
+
+      const adminName = socket.playerName || "Admin";
+      const result = roomManager.removePlayer(
+        socket.currentRoom,
+        kickPlayerId,
+        true,
+      );
+
+      if (result.success) {
+        const kickedSocket = Array.from(io.sockets.sockets.values()).find(
+          (s) => s.playerId === kickPlayerId,
+        );
+
+        if (kickedSocket) {
+          kickedSocket.emit("player:kicked", {
+            kickedBy: adminName,
+            message: `You have been kicked by ${adminName}`,
+          });
+          kickedSocket.leave(socket.currentRoom);
+          kickedSocket.currentRoom = null;
+        }
+
+        io.to(socket.currentRoom).emit("player:left", {
+          playerId: kickPlayerId,
+          players: result.room.players,
+        });
+      } else {
+        socket.emit("room:error", { message: result.error });
+      }
+    });
+
+    socket.on("disconnect", () => {
+      if (socket.playerId && socket.currentRoom) {
+        const room = roomManager.getRoom(socket.currentRoom);
+
+        const wasAdmin =
+          room &&
+          room.players[0] &&
+          (room.players[0].id === socket.playerId ||
+            room.players[0].playerId === socket.playerId);
+
+        roomManager.disconnectPlayer(socket.playerId);
+
+        if (room) {
+          socket.to(socket.currentRoom).emit("player:disconnected", {
+            playerId: socket.playerId,
+            players: room.players,
+          });
+
+          if (wasAdmin) {
+            const connectedPlayers = room.players.filter((p) => p.connected);
+            if (connectedPlayers.length > 0) {
+              const newAdmin = connectedPlayers[0];
+              const newAdminId = newAdmin.id || newAdmin.playerId;
+              const newAdminIndex = room.players.findIndex(
+                (p) => (p.id || p.playerId) === newAdminId,
+              );
+
+              if (newAdminIndex > 0) {
+                const promotedAdmin = room.players.splice(newAdminIndex, 1)[0];
+                room.players.unshift(promotedAdmin);
+              }
+
+              socket.to(socket.currentRoom).emit("admin:changed", {
+                newAdminId,
+                newAdminName: newAdmin.name,
+              });
+            }
+          }
+        }
+      }
+    });
+  });
 }
 
 module.exports = setupSocketHandlers;
